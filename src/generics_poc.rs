@@ -48,7 +48,7 @@ impl PsbtValidation for PsbtUnchecked {}
 // where
 //     V: PsbtValidation,
 // {
-//     inner: Option<PartiallySignedTransactionInner>,
+//     inner: PartiallySignedTransactionInner,
 // }
 
 impl<PsbtValidation> PartiallySignedTransaction<PsbtValidation> {
