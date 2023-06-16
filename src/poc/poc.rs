@@ -1,3 +1,6 @@
+use super::input::Input;
+use super::output::Output;
+
 /// A Partially Signed Transaction.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -35,7 +38,7 @@ pub struct Psbt {
 }
 
 impl Psbt {
-    pub fn from_inner(psbt: PartiallySignedTransactionInner) -> Result<Psbt, String> {
+    pub fn from_inner(psbt: PartiallySignedTransactionInner) -> Result<Psbt<Version>, String> {
         match validate_psbt_inner(psbt) {
             Ok(()) => Ok(Psbt { inner: psbt }),
             Err(err) => Err(err),
@@ -60,5 +63,37 @@ impl Psbt {
             }
         }
         Ok(())
+    }
+
+    pub fn add_input(&self, input: Input) -> Result<(), String> {
+        // Validate the input according to the version
+        if validate_input(input) {
+            Ok(())
+        } else {
+            Err("Error validating input!")
+        }
+    }
+
+    pub fn add_output(&self, output: Output) -> Result<(), String> {
+        // Validate the output according to the version
+        if validate_output(output) {
+            Ok(())
+        } else {
+            Err("Error validating output!")
+        }
+    }
+
+    fn validate_input(&self, input: &Input) -> bool {
+        // Code to validate input based on the psbt version
+        true
+    }
+
+    fn validate_output(&self, output: &Output) -> bool {
+        // Code to validate output based on the psbt version
+        true
+    }
+
+    pub fn to_inner(self) -> PartiallySignedTransactionInner {
+        self.inner
     }
 }
