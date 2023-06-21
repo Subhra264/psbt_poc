@@ -1,17 +1,15 @@
-Hello, I am Subhradeep Chakraborty, a Summer Of Bitcoin mentee working on the implementation of psbtv2 in rust-bitcoin as well as the rust-miniscript and mentored by @sanket1729. 
-
-## Approach 1: Implementation of Psbtv2 & Breaking Changes
-
-### Context
+## Context
 - [Tracking PSBT refactoring & PSBTv2 Epic](https://github.com/rust-bitcoin/rust-bitcoin/issues/1115)
 - [BIP 174](https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki)
 - [BIP 370](https://github.com/bitcoin/bips/blob/master/bip-0370.mediawiki)
 
+## Approach 1: Implementation of Psbtv2 & Breaking Changes
+
 ### PartiallySignedTransactionInner
 
-The following approach replaces the `PartiallySignedTransaction` with `PartiallySignedTransactionInner` where all the version specific fields are made `Option`. It comes with the flexibility to create both the Psbtv0 and Psbtv2 and do conversion between them. This is a big breaking change and requires existing implementations to be changed so to support the new psbtv2 standard.
+The following approach replaces the `PartiallySignedTransaction` with `PartiallySignedTransactionInner` where all the version-specific fields are made `Option`. It comes with the flexibility to create both the Psbtv0 and Psbtv2 and convert between them. This involves breaking changes and requires existing implementations to be changed to support the new psbtv2 standard.
 
-It assumes [this PR regarding the Psbt Version](https://github.com/rust-bitcoin/rust-bitcoin/pull/1218) to be marged and all the following changes are proposed on top of this PR.
+It assumes [this PR regarding the Psbt Version](https://github.com/rust-bitcoin/rust-bitcoin/pull/1218) to be merged and all the following changes are proposed on top of this PR.
 
 ```rust
 // PartiallySignedTrasanction --> PartiallySignedTransactionInner
@@ -44,7 +42,7 @@ pub struct PartiallySignedTransactionInner {
 }
 ```
 
-Introduction to a new `struct` named `Psbt` that internally stores and owns a `PartiallySignedTransactionInner` instance. A `Psbt` instance always gurantees that the underlying `inner` is validated.
+Introduction to a new `struct` named `Psbt` that internally stores and owns a `PartiallySignedTransactionInner` instance. A `Psbt` instance always guarantees that the underlying `inner` is validated.
 
 ```rust
 pub struct Psbt {
@@ -52,7 +50,7 @@ pub struct Psbt {
 }
 ```
 
-A `PartiallySignedTransactionInner` first needs to be created with all the fields (atleast the required ones) filled. The "Inner" instance can not be directly used anywhere, instead it must be validated first using the following method. The following factory method validates the psbt according to the `version` enum field of the inner and finally returns a new `Psbt` instance.
+A `PartiallySignedTransactionInner` first needs to be created with all the fields (at least the required ones) filled. The "inner" instance can not be directly used anywhere, instead, it must be validated first using the following method. The following factory method validates the psbt according to the inner's `version` enum field and finally returns a new `Psbt` instance.
 
 ```rust
 impl Psbt {
@@ -185,7 +183,7 @@ impl Psbt {
     /// Wrapper around the `ParitallySignedTransactionInner::serialize` function.
     ///
     /// Since only the validated Psbts can be allowed to be serialized and
-    /// transmitted through the network, only the `Psbt::serialize()` funciton
+    /// transmitted through the network, only the `Psbt::serialize()` function
     /// is to be used by the developers for the serialization. 
     pub fn serialize(&self) -> Vec<u8> {
         self.inner.serialize()
@@ -204,7 +202,7 @@ impl Psbt {
 
 ### Conversion between PsbtV0 and PsbtV2
 
-It is possible to create a psbtv0 out of a valid psbtv2 and vice versa. We can create the unsigned transaction required in PsbtV0 using various fields available in PsbtV2. 
+It is possible to create a psbtv0 out of a valid psbtv2 and vice versa (See https://gist.github.com/0xBEEFCAF3/8b7d7acee5ed0c7b84bb87cb53788394). We can create the unsigned transaction required in PsbtV0 using various fields available in PsbtV2.
 
 ```rust
 impl Psbt {
@@ -292,9 +290,9 @@ impl Psbt {
 }
 ```
 
-## Approach 2: Make everything Optional
+## Approach 2: Non-Breaking Changes
 
-The previous approach introduces breaking changes but provides runtime validation checks. Whereas the second approach avoids such breaking API changes, but its now upto the developers to do all the validations.
+The previous approach introduces breaking changes but provides validation checks. Whereas the second approach avoids such breaking API changes, but it is now up to the developers to do all the validations.
 
 ```rust
 // New optional PsbtV2 fields are added to the original PartiallySignedTransaction.
@@ -351,11 +349,11 @@ impl PartiallySignedTransaction {
     }
 }
 ```
-Opposite to the first approach, there is no guarentee that the created `PartiallySignedTransaction` is always validated. So all the Psbt functions need to first validate the Psbt internally before doing further operations, otherwise, developers using the library need to call the `validate` function for validation.
+Opposite to the first approach, there is no guarantee that the created `PartiallySignedTransaction` is always validated. So all the Psbt functions need to first validate the Psbt internally before doing further operations, otherwise, developers using the library need to call the `validate` function for validation.
 
 ### Using Psbt
 
-The usage of `PartiallySignedTransaction` is same as it is today.
+The usage of `PartiallySignedTransaction` is the same as it is today.
 
 ### Serializaion & Deserialization
 
@@ -379,7 +377,7 @@ impl PartiallySignedTransaction {
 
 ### Inputs & Outputs
 
-Implementations of PsbtV2 `Input` and `Output` are same as the first approach.
+Implementations of PsbtV2 `Input` and `Output` are the same as the first approach.
 
 ### Conversion between PsbtV0 and PsbtV2
 
@@ -402,7 +400,7 @@ impl PartiallySignedTransaction {
         match self.version [
             PsbtV0 => Ok(self),
             PsbtV2 => {
-                // Similar to previous approach, but returns `PartiallySignedTransaction`
+                // Similar to the previous approach, but returns `PartiallySignedTransaction`
             }
         ]
     }
