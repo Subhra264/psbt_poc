@@ -1,6 +1,6 @@
 Hello, I am Subhradeep Chakraborty, a Summer Of Bitcoin mentee working on the implementation of psbtv2 in rust-bitcoin as well as the rust-miniscript and mentored by @sanket1729. 
 
-## Implementation of Psbtv2 & Breaking Changes
+## Approach 1: Implementation of Psbtv2 & Breaking Changes
 
 ### Context
 - [Tracking PSBT refactoring & PSBTv2 Epic](https://github.com/rust-bitcoin/rust-bitcoin/issues/1115)
@@ -142,6 +142,29 @@ impl Psbt {
 }
 ```
 
+### Using Psbt
+
+Instead of giving direct access to `inner`, we can provide a getter -
+
+```rust
+impl Psbt {
+    pub fn get_inner_ref(&self) -> &PartiallySignedTransactionInner {
+        &self.inner
+    }
+
+    /// Returns the internally stored `PartiallySignedTransactionInner`
+    ///
+    /// After making any changes, the developer needs to build another `Psbt`
+    /// instance using the updated PsbtInner.
+    pub fn to_inner(self) -> PartiallySignedTransactionInner {
+        self.inner
+    }
+
+    // Or setters for Optional fields - PsbtV0 and PsbtV2 fields
+    // setters will do all the validations before making changes
+}
+```
+
 ### Serialization & Deserialization
 
 ```rust
@@ -152,7 +175,7 @@ impl PartiallySignedTransactionInner {
     }
     
     // Hide direct access to `PartiallySignedTransactionInner::deserialize()`
-    pub(crate) fn deserialize(&[u8]) -> Self {
+    pub(crate) fn deserialize(bytes: &[u8]) -> Self {
         // The PsbtV0 parser needs to be updated a little
         // to recognize new PsbtV2 fields
     }
@@ -226,7 +249,7 @@ impl Psbt {
                     ..self // Rest of the Psbt fields
                 };
 
-                Psbt::from_inner(psbt_inner)
+                Psbt::from_inner(psbt_inner).unwrap()
             }
             Version::PsbtV2 => self
         }
@@ -262,9 +285,126 @@ impl Psbt {
                     ..self // Rest of the Psbt fields
                 };
 
-                Psbt::from_inner(psbt_inner)
+                Psbt::from_inner(psbt_inner).unwrap()
             }
         }
+    }
+}
+```
+
+## Approach 2: Make everything Optional
+
+The previous approach introduces breaking changes but provides runtime validation checks. Whereas the second approach avoids such breaking API changes, but its now upto the developers to do all the validations.
+
+```rust
+// New optional PsbtV2 fields are added to the original PartiallySignedTransaction.
+// Hence no need to change existing implementations.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(crate = "actual_serde"))]
+pub struct PartiallySignedTransaction {
+    /// The unsigned transaction, scriptSigs and witnesses for each input must be empty.
+    pub unsigned_tx: Option<Transaction>,
+    /// The version number of this PSBT. If omitted, the version number is V0.
+    /// See https://github.com/rust-bitcoin/rust-bitcoin/pull/1218
+    pub version: Version,
+
+    // ...
+
+    /// The corresponding key-value map for each input in the unsigned transaction.
+    pub inputs: Vec<Input>, // New Input, see below
+    /// The corresponding key-value map for each output in the unsigned transaction.
+    pub outputs: Vec<Output>, // New Output, see below
+
+    // More new Psbtv2 Optional fields go here
+    /// 32-bit little endian signed integer representing the
+    /// version number of the transaction being created
+    pub tx_version: Option<i32>,
+    /// 32-bit little endian unsigned integer representing the transaction locktime
+    /// to use if no inputs specify a required locktime.
+    pub fallback_locktime: Option<u32>,
+    /// 8 bit unsigned integer as a bitfield for various transaction modification flags
+    pub tx_modifiable: Option<u8>, // or, Option<TxModifiable>
+}
+```
+
+### Validation
+
+```rust
+impl PartiallySignedTransaction {
+    /// Validates the Psbt according to the version
+    /// should be used by other functions for validation
+    pub fn validate(&self) -> Result<(), String> {
+        // Code
+    }
+
+    pub fn other_psbt_functions(&self) -> ReturnValue {
+        // First validate the psbt
+        match self.validate() {
+            Err(err) => {
+                // Do something
+            },
+            Ok(()) => {
+                // Code for further operations
+            }
+        }
+    }
+}
+```
+Opposite to the first approach, there is no guarentee that the created `PartiallySignedTransaction` is always validated. So all the Psbt functions need to first validate the Psbt internally before doing further operations, otherwise, developers using the library need to call the `validate` function for validation.
+
+### Using Psbt
+
+The usage of `PartiallySignedTransaction` is same as it is today.
+
+### Serializaion & Deserialization
+
+```rust
+impl PartiallySignedTransaction {
+    pub fn serialize(&self) -> Vec<u8> {
+        // Before proceeding further, validate the Psbt first
+        match validate() {
+            Err(err) => panic!(err), // Or do proper error handling
+            Ok() => {
+                // Code to serialize
+            }
+        }
+    }
+
+    pub fn deserialize(bytes: &[u8]) -> PartiallySignedTransaction {
+        // Build the Psbt from the bytes
+    }
+}
+```
+
+### Inputs & Outputs
+
+Implementations of PsbtV2 `Input` and `Output` are same as the first approach.
+
+### Conversion between PsbtV0 and PsbtV2
+
+```rust
+impl PartiallySignedTransaction {
+    pub fn get_v2(&self) -> Result<Self, String> {
+        // First it Psbt needs to be validated
+        validate().map_err(|err| handle_err(err));
+        match self.version {
+            PsbtV0 => {
+                // Similar to previous approach, but returns `PartiallySignedTransaction`
+            },
+            PsbtV2 => Ok(self)
+        }
+    }
+
+    pub fn get_v0(&self) -> Result<Self, String> {
+        // First it needs to be validated
+        self.validate().map_err(|err| handle_err(err));
+        match self.version [
+            PsbtV0 => Ok(self),
+            PsbtV2 => {
+                // Similar to previous approach, but returns `PartiallySignedTransaction`
+            }
+        ]
     }
 }
 ```
